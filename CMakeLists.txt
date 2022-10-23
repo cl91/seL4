@@ -108,17 +108,17 @@ set(
     BASE_CXX_FLAGS "${cxx_common_flags} ${c_common_flags} ${common_flags}"
     CACHE INTERNAL "Default CXX flags for compilation"
 )
-if(KernelArchX86)
-    if(Kernel64)
-        string(APPEND common_exe_flags " -Wl,-m -Wl,elf_x86_64")
-    else()
-        string(APPEND common_exe_flags " -Wl,-m -Wl,elf_i386")
-    endif()
-endif()
 set(
-    BASE_EXE_LINKER_FLAGS "${common_flags} ${common_exe_flags} "
+    BASE_EXE_LINKER_FLAGS "-nostdlib --no-pie ${KernelOptimisation} --build-id=none -static -n"
     CACHE INTERNAL "Default flags for linker an elf binary application"
 )
+if(KernelArchX86)
+    if(Kernel64)
+        string(APPEND BASE_EXE_LINKER_FLAGS " -m elf_x86_64")
+    else()
+        string(APPEND BASE_EXE_LINKER_FLAGS " -m elf_i386")
+    endif()
+endif()
 # Initializing the kernel build flags starting from the same base flags that the users will use
 include(${KERNEL_FLAGS_PATH})
 
@@ -126,7 +126,6 @@ include(${KERNEL_FLAGS_PATH})
 macro(KernelCommonFlags)
     foreach(common_flag IN ITEMS ${ARGV})
         add_compile_options(${common_flag})
-        string(APPEND CMAKE_EXE_LINKER_FLAGS " ${common_flag} ")
     endforeach()
 endmacro(KernelCommonFlags)
 KernelCommonFlags(-nostdinc -nostdlib ${KernelOptimisation} -DHAVE_AUTOCONF)
@@ -135,6 +134,7 @@ if(KernelFWholeProgram)
 endif()
 if(KernelDebugBuild)
     KernelCommonFlags(-DDEBUG -g -ggdb)
+    string(APPEND CMAKE_EXE_LINKER_FLAGS " -g")
     # Pretend to CMake that we're a release build with debug info. This is because
     # we do actually allow CMake to do the final link step, so we'd like it not to
     # strip our binary
@@ -186,9 +186,6 @@ add_compile_options(
     # - https://releases.llvm.org/11.0.0/tools/clang/docs/ReleaseNotes.html
     -fno-common
 )
-
-# Add all the common flags to the linker args
-string(APPEND CMAKE_EXE_LINKER_FLAGS " -ffreestanding -Wl,--build-id=none -static -Wl,-n ")
 
 if(KernelArchX86)
     add_compile_options(-mno-mmx -mno-sse -mno-sse2 -mno-3dnow)
@@ -580,7 +577,7 @@ target_include_directories(kernel.elf PRIVATE ${config_dir})
 target_include_directories(kernel.elf PRIVATE include)
 target_include_directories(kernel.elf PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(kernel.elf PRIVATE kernel_Config kernel_autoconf)
-set_property(TARGET kernel.elf APPEND_STRING PROPERTY LINK_FLAGS " -Wl,-T ${linker_lds_path} ")
+set_property(TARGET kernel.elf APPEND_STRING PROPERTY LINK_FLAGS " -T ${linker_lds_path} ")
 set_target_properties(kernel.elf PROPERTIES LINK_DEPENDS "${linker_lds_path}")
 add_dependencies(kernel.elf circular_includes)
 
